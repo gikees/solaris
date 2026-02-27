@@ -11,4 +11,7 @@ defaults:
   - dataset@eval_datasets.eval_both_look_away: eval_both_look_away
   - dataset@eval_datasets.eval_one_looks_away: eval_one_looks_away
 
+  - dataset@eval_datasets.eval_one_starts_away: eval_one_starts_away
+  - dataset@eval_datasets.eval_same_direction: eval_same_direction
+  - dataset@eval_datasets.eval_back_to_back: eval_back_to_back
   - _self_
