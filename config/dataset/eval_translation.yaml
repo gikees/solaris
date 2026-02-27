@@ -7,3 +7,4 @@ additional_params:
   bot1_name: "Alpha"
   bot2_name: "Bravo"
   shuffle_bots: ${shuffle_bots}
+

@@ -1,4 +1,6 @@
-# Solaris
+![Solaris logo](assets/solaris-icon-light.png)
+
+# Overview
 
 This repository contains the JAX implementation of the Solaris multiplayer world model for Minecraft. It supports GCP TPU training and inference, and GPU inference. It also contains the source code for the VLM-as-a-judge multiplayer self-consistency metric.
 
@@ -37,10 +39,25 @@ See the [nyu-visionx/solaris-eval-datasets](https://huggingface.co/datasets/nyu-
 For the simplest scenario, run this:
 
 ```bash
-python src/inference.py experiment_name=solaris
+CUDA_VISIABLE_DEVICES=0 python src/inference.py experiment_name=solaris device.eval_num_samples=1
 ```
 
-It assumes the datasets are in `./datasets` and uses the pretrained model weights at `./pretrained/solaris.pt`. It will use a batch size of `1` and write generated videos to `./output/`. For inference with a per-device batch size of `1`, the GPU device must have at least `48GB` memory. Refer to the [sharding](#sharding) section for details.
+It assumes the datasets are in `./datasets` and uses the pretrained model weights at `./pretrained/solaris.pt`. It will generate `1` video per eval dataset and write generated videos to `./output/`. If you want to run on multiple GPUs, adjust the `CUDA_VISIABLE_DEVICES` env variable, making sure `device.eval_num_samples` is divisible by it. Inference always uses a per-device batch size of `1`, which requires the GPU device to have at least `48GB` memory. Refer to the [sharding](#sharding) section for details.
+
+<details>
+<summary>GPU warnings</summary>
+
+You might see the following GPU log messages:
+
+```text
+2026-02-25 08:28:29.343101: E external/xla/xla/stream_executor/cuda/cuda_timer.cc:86] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+2026-02-25 08:28:29.472418: E external/xla/xla/stream_executor/cuda/cuda_timer.cc:86] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+2026-02-25 08:28:34.231109: W external/xla/xla/tsl/framework/bfc_allocator.cc:310] Allocator (GPU_0_bfc) ran out of memory trying to allocate 36.68GiB with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+```
+
+These are warnings and you can disregard them.
+
+</details>
 
 ## Evaluation
 
@@ -115,6 +132,8 @@ The training pipeline consists of four stages, each backed by a dedicated [runne
 
 Below are the four example commands to run each training stage. Edit the folder paths to where you set them up and run the command as part of `gcloud alpha compute tpus tpu-vm ssh --command {COMMAND}` in a multi-host setting.
 
+Note that running training automatically runs inference on the test split of the datasets. The training step and inference are JIT compiled functions which can time when running for the first time so the script might appear hanging at the beginning of the training and at the first evaluation.
+
 ### Stage 1 – Single-player bidirectional pretraining
 
 This stage pretrains the initial [Matrix Game 2.0 weights](https://huggingface.co/Skywork/Matrix-Game-2.0/tree/main/base_distilled_model) (available as [matrix-game-init](https://huggingface.co/nyu-visionx/solaris/tree/main/matrix-game-init)) on the VPT dataset, extending the action space.
@@ -125,10 +144,11 @@ python src/train.py \
         model=single_player \
         dataset=vpt \
         +dataset@eval_datasets.vpt=vpt \
+        ~dataset@eval_datasets.duet \
         experiment_name=sp_bidirectional_pretrain \
         wandb_entity="YOUR_WANDB_ENTITY" \
         device.batch_size=64 \
-        device.eval_batch_size=64 \
+        device.eval_num_samples=64 \
         device.data_dir="YOUR_DATASETS_DIR" \
         device.pretrained_model_dir="YOUR_PRETRAINED_MODEL_DIR" \
         device.output_dir="YOUR_OUTPUT_DIR" \
@@ -266,21 +286,21 @@ The codebase supports three model architectures:
 
 This repository supports two types of datasets: training and evaluation datasets. The former is used for training and test loss calculation, and the latter for inference and metrics calculation.
 
-`vpt` and `duet` are two datasets that are both training and evaluation datasets, where inference for evaluation happens on their test splits. There are `7` evaluation-only datasets: `eval_building`, `eval_consistency_opposite`, `eval_consistency`, `eval_grounding`, `eval_memory`, `eval_movement_rotation`, and `eval_movement_translation`. Every dataset has a corresponding config file in [config/dataset/](config/dataset/), and every dataset that is used for evaluation has a dedicated `eval_ids` file in [src/data/eval_ids/](src/data/eval_ids/). The eval ids file together with `EvalBatchSampler()` defined in [src/data/batch_sampler.py](src/data/batch_sampler.py) ensure that evaluation always happens on the same episode segments regardless of the number of GPU/TPU devices used for inference.
+`vpt` and `duet` are two datasets that are both training and evaluation datasets, where inference for evaluation happens on their test splits. There are `7` evaluation-only datasets: `eval_structure` (Building), `eval_turn_to_look_opposite` (Consistency), `eval_turn_to_look` (Consistency), `eval_one_looks_away` (Grounding), `eval_both_look_away` (Memory), `eval_rotation` (Movement), and `eval_translation` (Movement). Every dataset has a corresponding config file in [config/dataset/](config/dataset/), and every dataset that is used for evaluation has a dedicated `eval_ids` file in [src/data/eval_ids/](src/data/eval_ids/). The eval ids file together with `EvalBatchSampler()` defined in [src/data/batch_sampler.py](src/data/batch_sampler.py) ensure that evaluation always happens on the same episode segments regardless of the number of GPU/TPU devices used for inference.
 
 Below is a table summarizing all datasets in the codebase:
 
-| Name                        | Config                                                                                         | Training | Evaluation |
-| --------------------------- | ---------------------------------------------------------------------------------------------- | -------- | ---------- |
-| `vpt`                       | [config/dataset/vpt.yaml](config/dataset/vpt.yaml)                                             | ✓        | ✓          |
-| `duet`                      | [config/dataset/duet.yaml](config/dataset/duet.yaml)                                           | ✓        | ✓          |
-| `eval_building`             | [config/dataset/eval_building.yaml](config/dataset/eval_building.yaml)                         |          | ✓          |
-| `eval_consistency`          | [config/dataset/eval_consistency.yaml](config/dataset/eval_consistency.yaml)                   |          | ✓          |
-| `eval_consistency_opposite` | [config/dataset/eval_consistency_opposite.yaml](config/dataset/eval_consistency_opposite.yaml) |          | ✓          |
-| `eval_grounding`            | [config/dataset/eval_grounding.yaml](config/dataset/eval_grounding.yaml)                       |          | ✓          |
-| `eval_memory`               | [config/dataset/eval_memory.yaml](config/dataset/eval_memory.yaml)                             |          | ✓          |
-| `eval_movement_rotation`    | [config/dataset/eval_movement_rotation.yaml](config/dataset/eval_movement_rotation.yaml)       |          | ✓          |
-| `eval_movement_translation` | [config/dataset/eval_movement_translation.yaml](config/dataset/eval_movement_translation.yaml) |          | ✓          |
+| Name                         | Config                                                                                           | Training | Evaluation |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ | -------- | ---------- |
+| `vpt`                        | [config/dataset/vpt.yaml](config/dataset/vpt.yaml)                                               | ✓        | ✓          |
+| `duet`                       | [config/dataset/duet.yaml](config/dataset/duet.yaml)                                             | ✓        | ✓          |
+| `eval_structure`             | [config/dataset/eval_structure.yaml](config/dataset/eval_structure.yaml)                         |          | ✓          |
+| `eval_turn_to_look`          | [config/dataset/eval_turn_to_look.yaml](config/dataset/eval_turn_to_look.yaml)                   |          | ✓          |
+| `eval_turn_to_look_opposite` | [config/dataset/eval_turn_to_look_opposite.yaml](config/dataset/eval_turn_to_look_opposite.yaml) |          | ✓          |
+| `eval_one_looks_away`        | [config/dataset/eval_one_looks_away.yaml](config/dataset/eval_one_looks_away.yaml)               |          | ✓          |
+| `eval_both_look_away`        | [config/dataset/eval_both_look_away.yaml](config/dataset/eval_both_look_away.yaml)               |          | ✓          |
+| `eval_rotation`              | [config/dataset/eval_rotation.yaml](config/dataset/eval_rotation.yaml)                           |          | ✓          |
+| `eval_translation`           | [config/dataset/eval_translation.yaml](config/dataset/eval_translation.yaml)                     |          | ✓          |
 
 ## Sharding
 
