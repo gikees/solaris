@@ -1,0 +1,9 @@
+train_dataset_name: ""
+test_dataset_name: "eval/wallWalkEval/test"
+class: src.data.dataset.DatasetMultiplayer
+name: eval_wall_walk
+multiplayer: true
+additional_params:
+  bot1_name: "Alpha"
+  bot2_name: "Bravo"
+  shuffle_bots: ${shuffle_bots}

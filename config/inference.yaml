@@ -10,5 +10,10 @@ defaults:
   - dataset@eval_datasets.eval_turn_to_look_opposite: eval_turn_to_look_opposite
   - dataset@eval_datasets.eval_both_look_away: eval_both_look_away
   - dataset@eval_datasets.eval_one_looks_away: eval_one_looks_away
+  - dataset@eval_datasets.eval_back_to_back_turn: eval_back_to_back_turn
+  - dataset@eval_datasets.eval_blind_turn: eval_blind_turn
+  - dataset@eval_datasets.eval_divergent_look: eval_divergent_look
+  - dataset@eval_datasets.eval_parallel_turn: eval_parallel_turn
+  - dataset@eval_datasets.eval_wall_walk: eval_wall_walk
 
   - _self_
