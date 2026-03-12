@@ -27,9 +27,6 @@ def build_data_loader(
     local_batch_size = batch_size // jax.process_count()
 
     if eval:
-        assert (
-            eval_num_samples == batch_size
-        ), "eval_num_samples should be equal to batch_size in eval mode"
         if (
             eval_pseudo_process_index is not None
             or eval_pseudo_process_count is not None
@@ -59,7 +56,8 @@ def build_data_loader(
             num_global_samples=eval_num_samples,
         )
         num_batches = len(sampler)
-        pad_batch_to = calculate_last_batch_padding(eval_num_samples, batch_size)
+        total_samples = eval_num_samples if eval_num_samples is not None else len(sampler.examples) * num_replicas
+        pad_batch_to = calculate_last_batch_padding(total_samples, batch_size)
     else:
         if isinstance(dataset, DatasetMultiplayer):
             sampler = BatchSamplerMultiplayer(

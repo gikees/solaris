@@ -9,12 +9,12 @@ params:
   eval_dataloader_config:
     target: src.data.loader.build_data_loader
     params:
-      batch_size: ${device.eval_num_samples}
+      batch_size: ${device.batch_size}
       num_workers: ${device.num_workers}
       num_frames: ${runner.num_frames_eval}
       seed_data: 16
       eval: True
-      eval_num_samples: ${runner.params.eval_num_samples}
+      eval_num_samples: null
       eval_pseudo_process_index: null
       eval_pseudo_process_count: null
 

@@ -162,7 +162,7 @@ class Trainer(BaseSSLTrainer, BaseMPRunner):
         vae_graph,
         clip_state,
         clip_graph,
-        video,  
+        video,
         mouse_actions,
         keyboard_actions,
         real_lengths,
@@ -170,6 +170,8 @@ class Trainer(BaseSSLTrainer, BaseMPRunner):
         mesh,
         left_action_padding,
         num_denoising_steps=None,
+        fid_calculator=None,
+        video_offset=0,
     ):
         return self.evaluate_mp(
             bidirectional=self.bidirectional,
@@ -187,4 +189,6 @@ class Trainer(BaseSSLTrainer, BaseMPRunner):
             mesh=mesh,
             left_action_padding=left_action_padding,
             num_denoising_steps=num_denoising_steps,
+            fid_calculator=fid_calculator,
+            video_offset=video_offset,
         )

@@ -8,6 +8,7 @@ import jax
 import jax.experimental
 import jax.experimental.multihost_utils
 import jax.numpy as jnp
+import numpy as np
 import orbax.checkpoint as ocp
 import torch.multiprocessing as mp
 from absl import logging
@@ -17,6 +18,7 @@ from tqdm import tqdm
 import src.utils.sharding as sharding_utils
 import src.utils.wandb as wandb_utils
 from src.data.dataset import VideoReadError
+from src.metrics.compute_metrics import FIDCalculator
 from src.models.model_loaders import get_jax_clip_model, get_vae_model
 from src.utils.config import get_obj_from_str, instantiate_from_config
 
@@ -195,7 +197,7 @@ class BaseRunner(abc.ABC):
         vae_graph,
         clip_state,
         clip_graph,
-        video,  
+        video,
         mouse_actions,
         keyboard_actions,
         real_lengths,
@@ -203,6 +205,8 @@ class BaseRunner(abc.ABC):
         mesh,
         left_action_padding,
         num_denoising_steps=None,
+        fid_calculator=None,
+        video_offset=0,
     ):
         pass
 
@@ -217,10 +221,6 @@ class BaseRunner(abc.ABC):
         eval_dataloader_info,
         eval_dir_name,
     ):
-        _, video_unprocessed, actions_mouse, actions_keyboard, real_lengths = (
-            self._get_curr_batch(iter(eval_dataloader_info["dataloader"]))
-        )
-
         evaluation_output_directory = os.path.join(self.eval_save_dir, eval_dir_name)
         os.makedirs(evaluation_output_directory, exist_ok=True)
 
@@ -230,22 +230,43 @@ class BaseRunner(abc.ABC):
         vae_graph, vae_state = nnx.split(self.vae_model)
         clip_graph, clip_state = nnx.split(self.clip_model)
 
-        metric_curve = self._evaluate(
-            eval_state,
-            eval_graph,
-            vae_state,
-            vae_graph,
-            clip_state,
-            clip_graph,
-            video_unprocessed,
-            actions_mouse,
-            actions_keyboard,
-            real_lengths,
-            eval_dir=evaluation_output_directory,
-            mesh=self.mesh,
-            left_action_padding=self.left_action_padding,
-            num_denoising_steps=num_denoising_steps,
-        )
+        num_batches = eval_dataloader_info["local_num_batches"]
+        fid_calculator = FIDCalculator(num_sources=2)
+
+        loader_iter = iter(eval_dataloader_info["dataloader"])
+        video_offset = 0
+        for batch_idx in range(num_batches):
+            logging.info(
+                "Processing eval batch %d/%d for %s",
+                batch_idx + 1,
+                num_batches,
+                eval_dir_name,
+            )
+            _, video_unprocessed, actions_mouse, actions_keyboard, real_lengths = (
+                self._get_curr_batch(loader_iter)
+            )
+
+            self._evaluate(
+                eval_state,
+                eval_graph,
+                vae_state,
+                vae_graph,
+                clip_state,
+                clip_graph,
+                video_unprocessed,
+                actions_mouse,
+                actions_keyboard,
+                real_lengths,
+                eval_dir=evaluation_output_directory,
+                mesh=self.mesh,
+                left_action_padding=self.left_action_padding,
+                num_denoising_steps=num_denoising_steps,
+                fid_calculator=fid_calculator,
+                video_offset=video_offset,
+            )
+            video_offset += video_unprocessed.shape[0]
+
+        metric_curve = {"fid": np.array(fid_calculator.get_fid_curve_jax())}
         for k, v in metric_curve.items():
             logging.info(f"test_{k}: {v.mean().item()}")
         return metric_curve
