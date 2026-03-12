@@ -1,0 +1,11 @@
+defaults:
+  - shared
+  - device: gpu
+  - model: solaris
+  - runner: inference
+  - dataset@eval_datasets.eval_blind_turn: eval_blind_turn
+  - dataset@eval_datasets.eval_divergent_look: eval_divergent_look
+  - dataset@eval_datasets.eval_parallel_turn: eval_parallel_turn
+  - dataset@eval_datasets.eval_wall_walk: eval_wall_walk
+
+  - _self_
