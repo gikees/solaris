@@ -177,7 +177,7 @@ class BaseMPRunner(BaseRunner):
         vae_graph,
         clip_state,
         clip_graph,
-        video,  
+        video,
         mouse_actions,
         keyboard_actions,
         real_lengths,
@@ -185,6 +185,8 @@ class BaseMPRunner(BaseRunner):
         mesh,
         left_action_padding,
         num_denoising_steps=None,
+        fid_calculator=None,
+        video_offset=0,
     ):
         num_eval_frames = video.shape[2]
         processed_video_BPFHWC = wan_image_condition_preprocess(video, 352, 640)
@@ -338,7 +340,7 @@ class BaseMPRunner(BaseRunner):
 
             num_processes = jax.process_count()
             process_index = jax.process_index()
-            global_i = process_index
+            global_i = video_offset + process_index
             for i in range(torch_side_by_side_video_BFHWC.shape[0]):
                 video_int8 = torch_side_by_side_video_BFHWC[i]
                 write_video(
@@ -349,8 +351,8 @@ class BaseMPRunner(BaseRunner):
         metrics = ["fid"]
         n_prompt_frames = 1
 
-        fid_calculator = None
-        if "fid" in metrics:
+        owns_fid_calculator = fid_calculator is None
+        if "fid" in metrics and fid_calculator is None:
             fid_calculator = FIDCalculator(num_sources=2)
             # Calculate metrics using shared function
         pred_frames = rearrange(rollout_frames_BPFHWC, "b p f h w c -> b f p h w c")[
@@ -367,7 +369,7 @@ class BaseMPRunner(BaseRunner):
         )
 
         all_metrics = {}
-        if "fid" in metrics:
+        if "fid" in metrics and owns_fid_calculator:
             assert fid_calculator is not None
             all_metrics["fid"] = np.array(fid_calculator.get_fid_curve_jax())
 
