@@ -60,7 +60,7 @@ class Inference(BaseMPRunner):
         vae_graph,
         clip_state,
         clip_graph,
-        video,
+        video, 
         mouse_actions,
         keyboard_actions,
         real_lengths,
@@ -68,8 +68,6 @@ class Inference(BaseMPRunner):
         mesh,
         left_action_padding,
         num_denoising_steps=None,
-        fid_calculator=None,
-        video_offset=0,
     ):
         return self.evaluate_mp(
             bidirectional=False,
@@ -87,8 +85,6 @@ class Inference(BaseMPRunner):
             mesh=mesh,
             left_action_padding=left_action_padding,
             num_denoising_steps=num_denoising_steps,
-            fid_calculator=fid_calculator,
-            video_offset=video_offset,
         )
 
     def run(self):

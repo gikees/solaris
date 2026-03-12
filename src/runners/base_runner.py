@@ -195,7 +195,7 @@ class BaseRunner(abc.ABC):
         vae_graph,
         clip_state,
         clip_graph,
-        video,
+        video,  
         mouse_actions,
         keyboard_actions,
         real_lengths,
@@ -203,8 +203,6 @@ class BaseRunner(abc.ABC):
         mesh,
         left_action_padding,
         num_denoising_steps=None,
-        fid_calculator=None,
-        video_offset=0,
     ):
         pass
 
@@ -219,6 +217,10 @@ class BaseRunner(abc.ABC):
         eval_dataloader_info,
         eval_dir_name,
     ):
+        _, video_unprocessed, actions_mouse, actions_keyboard, real_lengths = (
+            self._get_curr_batch(iter(eval_dataloader_info["dataloader"]))
+        )
+
         evaluation_output_directory = os.path.join(self.eval_save_dir, eval_dir_name)
         os.makedirs(evaluation_output_directory, exist_ok=True)
 
@@ -228,42 +230,22 @@ class BaseRunner(abc.ABC):
         vae_graph, vae_state = nnx.split(self.vae_model)
         clip_graph, clip_state = nnx.split(self.clip_model)
 
-        from src.metrics.compute_metrics import FIDCalculator
-        fid_calculator = FIDCalculator(num_sources=2)
-
-        dataloader = eval_dataloader_info["dataloader"]
-        num_batches = len(dataloader)
-        loader_iter = iter(dataloader)
-        video_offset = 0
-        for batch_idx in range(num_batches):
-            _, video_unprocessed, actions_mouse, actions_keyboard, real_lengths = (
-                self._get_curr_batch(loader_iter)
-            )
-            batch_size = video_unprocessed.shape[0]
-            logging.info(f"Processing batch {batch_idx + 1}/{num_batches} ({batch_size} episodes)")
-
-            self._evaluate(
-                eval_state,
-                eval_graph,
-                vae_state,
-                vae_graph,
-                clip_state,
-                clip_graph,
-                video_unprocessed,
-                actions_mouse,
-                actions_keyboard,
-                real_lengths,
-                eval_dir=evaluation_output_directory,
-                mesh=self.mesh,
-                left_action_padding=self.left_action_padding,
-                num_denoising_steps=num_denoising_steps,
-                fid_calculator=fid_calculator,
-                video_offset=video_offset,
-            )
-            video_offset += batch_size
-
-        import numpy as np
-        metric_curve = {"fid": np.array(fid_calculator.get_fid_curve_jax())}
+        metric_curve = self._evaluate(
+            eval_state,
+            eval_graph,
+            vae_state,
+            vae_graph,
+            clip_state,
+            clip_graph,
+            video_unprocessed,
+            actions_mouse,
+            actions_keyboard,
+            real_lengths,
+            eval_dir=evaluation_output_directory,
+            mesh=self.mesh,
+            left_action_padding=self.left_action_padding,
+            num_denoising_steps=num_denoising_steps,
+        )
         for k, v in metric_curve.items():
             logging.info(f"test_{k}: {v.mean().item()}")
         return metric_curve
